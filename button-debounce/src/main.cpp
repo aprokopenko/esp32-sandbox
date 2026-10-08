@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoLog.h>
 #include <OneButton.h>
+#include <SimpleButton.h>
 #include <vector>
 #include "pins.h"
 
@@ -15,7 +16,8 @@ struct BtnEvent {
 
 std::vector<BtnEvent> events;
 
-OneButton btn2(BTN2_PIN, true, true);  // pin, activeLow, enable internal pull-up
+OneButton oneBtn(ONE_BTN_PIN, true, true);  // pin, activeLow, enable internal pull-up
+SimpleButton customBtn(CUSTOM_BTN_PIN);
 
 void setup()
 {
@@ -25,15 +27,17 @@ void setup()
   pinMode(BTN_PIN, INPUT_PULLUP);
   events.reserve(64);
 
-  btn2.attachClick([]() { Log.infoln("btn2 click"); });
-  btn2.attachDoubleClick([]() { Log.infoln("btn2 double click"); });
-  btn2.attachLongPressStart([]() { Log.infoln("btn2 long press"); });
+  oneBtn.attachClick([]() { Log.infoln("oneBtn click"); });
+  oneBtn.attachDoubleClick([]() { Log.infoln("oneBtn double click"); });
+  oneBtn.attachLongPressStart([]() { Log.infoln("oneBtn long press"); });
+
+  customBtn.init();
 
   Log.noticeln("Setup done");
 }
 
 void loop() {
-  btn2.tick();
+  oneBtn.tick();
 
   uint8_t btnNow = digitalRead(BTN_PIN);
   bool btnPressed = btnNow == LOW;
@@ -42,6 +46,10 @@ void loop() {
   if (btnNow != btnLast) {
     events.push_back({micros(), btnNow, btnNow == LOW});
     btnLast = btnNow;
+  }
+
+  if (customBtn.pressed()) {
+    events.push_back({micros(), false, true});
   }
 
   if (millis() % 1000 == 0 && events.size() > 0) {
