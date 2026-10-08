@@ -4,13 +4,13 @@
 class SimpleButton
 {
     private:
-        uint8_t pin_;
-        uint16_t debounceUs_;
-        bool lastValue_ = false;
-        uint32_t lastChangedUs_ = 0;
+        const uint8_t _pin;
+        const uint16_t _debounceUs;
+        bool _lastValue = false;
+        uint32_t _lastChangedUs = 0;
 
     public:
-        SimpleButton(uint8_t pin, uint16_t debounceUs = 50000);
+        explicit SimpleButton(uint8_t pin, uint16_t debounceUs = 50000);
         void init();
         bool pressed();
 };
