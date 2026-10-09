@@ -9,9 +9,10 @@ An ESP32 example that plays a sound when something moves. A PIR motion sensor wa
 
 ## How it works
 
-1. The PIR sensor pulls `OUT` `HIGH` when it sees motion and drops it back to `LOW` after the hold time.
-2. The ESP32 watches D22 for a `LOW` → `HIGH` edge.
-3. On each edge it picks a random note from the notes array and plays it on D23 for a short time.
+1. After power-up the sensor warms up for **20 seconds**. Motion is ignored during this time, because the PIR gives false triggers while it settles. A single short high beep (2000 Hz) means the sensor is ready.
+2. The PIR sensor pulls `OUT` `HIGH` when it sees motion and drops it back to `LOW` after the hold time.
+3. The ESP32 watches D22 for a `LOW` → `HIGH` edge.
+4. On each edge it picks a random note from the notes array and plays it on D23 for a short time.
 
 The sensor's **time delay** potentiometer is turned to the minimum, so `OUT` goes back to `LOW` quickly and the next movement creates a new edge. This way almost every movement plays a note.
 
@@ -106,13 +107,27 @@ The HW-416-B has two potentiometers and a trigger jumper:
 - **Sensitivity** (detection range): adjust to the size of the room.
 - **Trigger jumper:** `L` (single trigger) drops `OUT` after the hold time even if motion continues, so continuous motion produces repeated edges. `H` (repeat trigger) keeps `OUT` `HIGH` while motion continues, which produces fewer notes.
 
-After `OUT` goes back to `LOW`, the sensor ignores motion for about 2.5 seconds, so notes can't come faster than that. The sensor also needs up to a minute after power-up to settle, and may trigger on its own during that time.
+After `OUT` goes back to `LOW`, the sensor ignores motion for about 2.5 seconds, so notes can't come faster than that.
+
+The sensor can take up to a minute after power-up to settle, and may trigger on its own during that time. The 20 second warm-up covers most of it. If you still get false triggers right after the ready beep, make the warm-up longer with the third `MotionSensor` constructor argument, for example `MotionSensor ms(SENSOR_PIN, 50, 30000);` for 30 seconds.
 
 ## Notes
 
 - **Passive vs active buzzer:** the MH-FMD is a passive buzzer, so a constant `HIGH` or `LOW` makes no sound. It needs a square wave at the note's frequency, which `tone()` generates.
 - **MH-FMD input is active `LOW`:** the module switches the buzzer through a PNP transistor. If the buzzer stays quiet, sounds weak, or never fully stops while the module is on the 5V rail, the ESP32's 3.3V `HIGH` may not be enough to turn the transistor off. Moving the buzzer's `VCC` to the 3.3V rail fixes that.
 - **HW-416-B supply voltage:** the sensor is rated for 4.5–20V on `VCC`. It often works at 3.3V, but if it triggers randomly or not at all, power it from 5V. Its `OUT` pin stays at 3.3V either way, so it is safe for the ESP32.
+
+## Code structure
+
+| Path | What it does |
+|---|---|
+| [src/main.cpp](src/main.cpp) | Ties it together: plays the ready beep, and a random note on each motion |
+| [include/pins.h](include/pins.h) | Pin assignments |
+| [lib/MotionSensor](lib/MotionSensor) | Reads the PIR output, detects the `LOW` → `HIGH` edge, handles the warm-up (`isJustReady()`, `isJustMoved()`) |
+| [lib/PassiveBuzzer](lib/PassiveBuzzer) | Non-blocking `playNote(freq, durationMs)`. `tick()` must be called on every `loop()` to stop the note on time |
+| [lib/NotePicker](lib/NotePicker) | The notes table (C5–C6) with `pickRandom()` and `findByName()` |
+
+`loop()` never calls `delay()`, so the sensor is checked continuously, even while a note is playing.
 
 ## Build and run
 
