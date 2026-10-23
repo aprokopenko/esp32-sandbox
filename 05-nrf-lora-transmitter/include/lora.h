@@ -3,8 +3,8 @@
 
 // LoRa radio settings, must match on transmitter and receiver
 constexpr float LORA_FREQUENCY_MHZ = 868.3;
-constexpr float LORA_BANDWIDTH_KHZ = 250.0;   // 7.8 .. 500
-constexpr uint8_t LORA_SPREADING_FACTOR = 7;  // 5..12
+constexpr float LORA_BANDWIDTH_KHZ = 500.0;   // 7.8 .. 500
+constexpr uint8_t LORA_SPREADING_FACTOR = 6;  // 5..12
 constexpr uint8_t LORA_CODING_RATE = 5;       // 5..8 = 4/5..4/8
 constexpr uint8_t LORA_SYNC_WORD = 0x22;
 constexpr int8_t LORA_POWER_DBM = 14;         // -9..22

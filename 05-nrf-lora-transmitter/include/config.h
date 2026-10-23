@@ -1,6 +1,11 @@
 #pragma once
 #include <stdint.h>
 
+#ifndef LORA_FIXED_PAYLOAD_SIZE
+#define LORA_FIXED_PAYLOAD_SIZE 0
+#endif
+static_assert(LORA_FIXED_PAYLOAD_SIZE >= 0 && LORA_FIXED_PAYLOAD_SIZE <= 255, "LoRa payload must be 0..255 bytes");
+
 constexpr uint8_t LEDR_PIN = 11;
 constexpr uint8_t LEDB_PIN = 12;
 constexpr uint8_t LEDG_PIN = 13;

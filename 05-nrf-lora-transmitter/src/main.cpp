@@ -19,7 +19,7 @@ void setFlag(void) {
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial && millis() < 3000) {}
+  delay(2000);
 
   Log.begin(LOG_LEVEL, &Serial);
 
@@ -60,18 +60,19 @@ void setup() {
 // counter to keep track of transmitted packets
 unsigned int packagesSent = 0;
 uint32_t lastTransmissionMs = 0;
-constexpr uint16_t TRANSMISSIONS_DELAY_MS = 30000;
+uint64_t lastTransmissionUs = 0;
+constexpr uint16_t TRANSMISSIONS_DELAY_MS = 15000;
 
 void loop() {
-  uint32_t nowMs = millis();
-
   // check if the previous transmission finished
   if(transmittedFlag) {
     // reset flag
     transmittedFlag = false;
 
+    uint64_t txTimeUs = micros() - lastTransmissionUs;
+
     if (transmissionState == RADIOLIB_ERR_NONE) {
-      Log.traceln("[SX1262]   transmission finished!");
+      Log.traceln("[SX1262]   transmission finished in %uus!", txTimeUs);
     } else {
       Log.errorln("[SX1262]   transmission failed! Code %d", transmissionState);
     }
@@ -83,6 +84,7 @@ void loop() {
     digitalWrite(LEDR_PIN, HIGH);
   }
 
+  uint32_t nowMs = millis();
   if (
     (!lastTransmissionMs || (nowMs - lastTransmissionMs >= TRANSMISSIONS_DELAY_MS)) 
     && !transmittedFlag
@@ -92,11 +94,18 @@ void loop() {
     float cpuTemp = readCPUTemperature();
 
     // you can transmit C-string string up to 256 characters long
-    char msg[64];
-    snprintf(msg, sizeof(msg), "Package #%u at %lus, T=%.1f", packagesSent, nowMs / 1000, cpuTemp);
-    transmissionState = radio.startTransmit(msg);
+    uint8_t msg[LORA_FIXED_PAYLOAD_SIZE ? LORA_FIXED_PAYLOAD_SIZE : 64];
+    if (LORA_FIXED_PAYLOAD_SIZE) {
+      memset(msg, 0xAA, sizeof(msg));
+    }
+    snprintf((char*)msg, sizeof(msg), "Package #%u at %lus, T=%.1f", packagesSent, nowMs / 1000, cpuTemp);
+    size_t len = LORA_FIXED_PAYLOAD_SIZE ? sizeof(msg) : strlen((char*)msg);
+    Log.traceln("[SX1262]    message (%dB): %s", len, (char*)msg);
+
+    transmissionState = radio.startTransmit(msg, len);
 
     lastTransmissionMs = nowMs;
+    lastTransmissionUs = micros();
     digitalWrite(LEDR_PIN, LOW);
   }
 }

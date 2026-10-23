@@ -60,6 +60,20 @@ Both boards must use the **same** LoRa settings, or the receiver will not see th
 
 **TCXO:** most SX1262 modules use a temperature-compensated crystal (TCXO) that the radio powers itself. RadioLib must know its voltage **before** `begin()`, so the code sets `radio.tcxoVoltage` first. If your module has a plain crystal (XTAL), set `LORA_TCXO_VOLTAGE` to `0`. If this value is wrong, `begin()` usually fails.
 
+Current settings was tested within ~23 meters and 1 wall between.
+
+### Measurements of different LoRa settings
+
+| SF | BW | Package | Time |
+|---|---|---|---|
+| SF6 | 125 kHz | 64B | 67.4ms |
+| SF6 | 500 kHz | 64B | 16.6ms |
+| SF12 | 125 kHz | 64B | 2793ms |
+| SF12 | 500 kHz | 64B | 616ms |
+
+Lower SF value provides much faster transfer (but range is lower too).  
+Higher BW provides much faster transfer (but error rate also grows).
+
 ## Pins
 
 | SX1262 signal | XIAO pin | Notes |
