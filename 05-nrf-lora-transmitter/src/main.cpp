@@ -3,6 +3,7 @@
 #include <RadioLib.h>
 #include "config.h"
 #include "lora.h"
+#include "fsk.h"
 
 SX1262 radio = new Module(CS0_PIN, DIO1_PIN, NRST_PIN, BUSY_PIN);
 
@@ -28,7 +29,19 @@ void setup() {
   // set to 0 if your radio has an XTAL
   radio.tcxoVoltage = LORA_TCXO_VOLTAGE;
 
-  Log.infoln("[SX1262] Initializing...");
+#ifdef RADIO_MODEM_FSK
+  Log.infoln("[SX1262] Initializing FSK...");
+  ConfigFSK_t config;
+  config.frequency          = FSK_FREQUENCY_MHZ;
+  config.bitRate            = FSK_BITRATE_KBPS;
+  config.frequencyDeviation = FSK_FREQ_DEV_KHZ;
+  config.receiverBandwidth  = FSK_RX_BANDWIDTH_KHZ;
+  config.power              = FSK_POWER_DBM;
+  config.preambleLength     = FSK_PREAMBLE_LENGTH;
+
+  int state = radio.beginFSK(config);
+#else
+  Log.infoln("[SX1262] Initializing LoRa...");
   ConfigLoRa_t config;
   config.frequency       = LORA_FREQUENCY_MHZ;
   config.bandwidth       = LORA_BANDWIDTH_KHZ;
@@ -39,6 +52,7 @@ void setup() {
   config.preambleLength  = LORA_PREAMBLE_LENGTH;
 
   int state = radio.begin(config);
+#endif
   if (state == RADIOLIB_ERR_NONE) {
     Log.infoln("   success!");
 
@@ -101,6 +115,8 @@ void loop() {
     snprintf((char*)msg, sizeof(msg), "Package #%u at %lus, T=%.1f", packagesSent, nowMs / 1000, cpuTemp);
     size_t len = LORA_FIXED_PAYLOAD_SIZE ? sizeof(msg) : strlen((char*)msg);
     Log.traceln("[SX1262]    message (%dB): %s", len, (char*)msg);
+
+    Log.traceln("[SX1262]    expected time on air: %uus", (uint32_t)radio.getTimeOnAir(len));
 
     transmissionState = radio.startTransmit(msg, len);
 

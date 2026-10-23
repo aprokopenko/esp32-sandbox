@@ -74,6 +74,15 @@ Current settings was tested within ~23 meters and 1 wall between.
 Lower SF value provides much faster transfer (but range is lower too).  
 Higher BW provides much faster transfer (but error rate also grows).
 
+### Comparison with FSK
+
+LoRa is the default. To send with FSK instead, uncomment `-D RADIO_MODEM_FSK` in [platformio.ini](platformio.ini). The FSK settings are in [include/fsk.h](include/fsk.h).
+
+| Modulation | Params | Package | Time |
+|---|---|---|---|
+| FSK | bitrate / f_dev: 15200 | 64B | 38ms |
+| FSK | bitrate / f_dev: 100000 | 64B | 5.7ms |
+
 ## Pins
 
 | SX1262 signal | XIAO pin | Notes |
@@ -104,6 +113,7 @@ RadioLib uses the default `SPI` object, so `SCK_PIN`, `MISO_PIN` and `MOSI_PIN` 
 | [src/main.cpp](src/main.cpp) | `setup()`: radio init. `loop()`: send a packet every 30 s and finish it when done |
 | [include/config.h](include/config.h) | Pin assignments (radio and LEDs) |
 | [include/lora.h](include/lora.h) | LoRa radio settings (must match the receiver) and the TCXO voltage |
+| [include/fsk.h](include/fsk.h) | FSK radio settings, used with `-D RADIO_MODEM_FSK` |
 
 ## Build and run
 
@@ -113,6 +123,28 @@ pio device monitor
 ```
 
 The board uses the Seeed platform from GitHub (see [platformio.ini](platformio.ini)), so the first build downloads it and takes longer.
+
+### Build flags
+
+Set these in `build_flags` in [platformio.ini](platformio.ini). PlatformIO rebuilds the project when they change.
+
+| Flag | Default | What it does |
+|---|---|---|
+| `LOG_LEVEL` | none, must be set | ArduinoLog level, for example `LOG_LEVEL_VERBOSE` to see every packet |
+| `LORA_FIXED_PAYLOAD_SIZE` | `0` | `1`..`255`: every packet is exactly this many bytes. The text is padded with `0xAA`, or cut if it is longer. `0`: the packet is only as long as the text |
+| `RADIO_MODEM_FSK` | not set (LoRa) | If set, the radio uses FSK with the settings from [include/fsk.h](include/fsk.h) instead of LoRa |
+
+For example, to send 64-byte FSK packets:
+
+```ini
+build_flags =
+	-D LOG_LEVEL=LOG_LEVEL_VERBOSE
+	-D LORA_FIXED_PAYLOAD_SIZE=64
+	-D RADIO_MODEM_FSK
+	-Wall
+```
+
+> The receiver in [05-ttgo-lora-receiver](../05-ttgo-lora-receiver) only listens for LoRa, so it does not see FSK packets.
 
 The serial monitor runs at 115200 baud. With `LOG_LEVEL_VERBOSE` each packet looks like this:
 
