@@ -9,6 +9,8 @@
 #include "config.h"
 #include "reset.h"
 #include "version.h"
+#include "partitions.h"
+#include <esp_partition.h>
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -25,6 +27,9 @@ void setup() {
   log_i("free heap: %lu", (unsigned long)esp_get_free_heap_size());
 
   ESP_ERROR_CHECK(nvs_flash_init());
+
+  // print partitions info
+  traceEspPartitions();
 
   // init SPI interface
   SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, CS0_PIN);
