@@ -9,7 +9,7 @@ QueueHandle_t xBtnEvents = nullptr;
  */
 namespace {
 
-constexpr uint16_t X_BTN_ISR_STACK = 8192;  // TODO: recalculate later
+constexpr uint16_t X_BTN_ISR_STACK = 3072;
 constexpr uint8_t X_BTN_ISR_PRIO = 3;
 constexpr unsigned int BTN_DEBOUNCE_MS = 30;
 constexpr unsigned int BTN_DOUBLE_MS = 350;
@@ -110,6 +110,8 @@ void processButtonChange(void *args) {
   int64_t deadlineUs = 0;
   int64_t lastPressUs = 0;
 
+  static UBaseType_t minFree = UINT32_MAX;
+
   for (;;) {
     BaseType_t eventReceived = xQueueReceive(xBtnIsr, &e, waitTicks);
 
@@ -172,6 +174,13 @@ void processButtonChange(void *args) {
       }
 
       digitalWrite(DBG1_PIN, LOW);
+    }
+
+    // stack measure
+    UBaseType_t freeNow = uxTaskGetStackHighWaterMark(nullptr);
+    if (freeNow < minFree) {
+      minFree = freeNow;
+      log_i("[BUTTON STACK] min free %u B", freeNow);
     }
   }
 }

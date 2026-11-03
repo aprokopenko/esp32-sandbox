@@ -5,6 +5,7 @@
 #include <RadioLib.h>
 #include <optional>
 #include "config.h"
+#include "display.h"
 #include "lora.h"
 
 namespace radio {
@@ -15,7 +16,7 @@ namespace {
   QueueHandle_t xLoRa;
   SemaphoreHandle_t xTxSemaphore;
 
-  constexpr uint16_t X_LORA_STACK_SIZE = 4096;
+  constexpr uint16_t X_LORA_STACK_SIZE = 3072;
   constexpr uint8_t X_LORA_PRIO = 5;
 
   SX1276 chip = new Module(CS0_PIN, DIO0_PIN, NRST_PIN, RADIOLIB_NC);
@@ -71,6 +72,8 @@ namespace {
 
   void processRadioQueue(void* args) {
     int clicks;
+    static UBaseType_t minFree = UINT32_MAX;
+
     for (;;) {
       if (pdTRUE != xQueueReceive(xLoRa, &clicks, portMAX_DELAY)) {
         log_e("Lora queue is not responding");
@@ -80,6 +83,7 @@ namespace {
       xSemaphoreTake(xTxSemaphore, 0); // clear semaphore anyway
       std::optional<RadioLibTime_t> onAir = startTransmission(prepareClicksMessage(clicks));
       if (!onAir) {
+        display::post(display::UiEvent::TxFailed, transmissionState);
         continue;
       }
       digitalWrite(DBG2_PIN, HIGH);
@@ -92,6 +96,20 @@ namespace {
       finishTransmission();
 
       digitalWrite(DBG2_PIN, LOW);
+
+      // after DBG2 LOW: the UI is not part of the measured path
+      if (transmissionState == RADIOLIB_ERR_NONE) {
+        display::post(display::UiEvent::TxDone);
+      } else {
+        display::post(display::UiEvent::TxFailed, transmissionState);
+      }
+
+      // stack measure
+      UBaseType_t freeNow = uxTaskGetStackHighWaterMark(nullptr);
+      if (freeNow < minFree) {
+        minFree = freeNow;
+        log_i("[RADIO STACK] min free %u B", freeNow);
+      }
     }
   }
 }  //namespace
