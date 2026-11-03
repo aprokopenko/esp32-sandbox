@@ -5,7 +5,7 @@ Draft design for the [FreeRTOS basics](README.md) homework. The values marked _T
 ## Event flow
 
 ```
-[button] ─(GPIO IRQ)─> Button ISR ──Q1(timestamp)──> Button Task
+[button] ─(GPIO IRQ)─> Button ISR ──Q1(µs, level)──> Button Task
                                                         │ SINGLE/DOUBLE + t_press
                                                         ▼
                                                Q2 ──> Main loop (dispatcher)
@@ -22,7 +22,7 @@ Button Task / Main loop / Radio Task ──Q4(UI events)──> Display Task ─
 
 | Component | Job | Waits on | Priority |
 |---|---|---|---|
-| **Button ISR** | puts `esp_timer_get_time()` into Q1 | — | — |
+| **Button ISR** | puts `esp_timer_get_time()` and the pin level into Q1 | — | — |
 | **Button Task** | debounce, single/double detection | Q1: forever when idle, until the deadline in the double-click window | medium |
 | **Main loop** | app logic: click → radio command | Q2: `portMAX_DELAY` | low (Arduino default 1) |
 | **Radio Task** | `startTransmit` → wait for DIO0 → `finishTransmit` | Q3 forever, then the notification with a timeout | high |
@@ -35,8 +35,8 @@ No component polls flags or busy-waits. Every task sleeps on its own sync primit
 
 | Queue | Producer → consumer | Item | When full |
 |---|---|---|---|
-| **Q1** | Button ISR → Button Task | press timestamp (µs) | drop silently (it's an ISR) |
-| **Q2** | Button Task → Main loop | click type + `t_press` | drop, send an error event to Q4 |
+| **Q1** | Button ISR → Button Task | edge timestamp (µs) + pin level, 40 slots | drop, count in `btnIsrRejections` (no logs in an ISR) |
+| **Q2** | Button Task → Main loop | click type + `t_press` (ms), 3 slots | wait up to 5 s, then drop and count in `btnEventRejections`. Error event to Q4: _TBD_ |
 | **Q3** | Main loop → Radio Task | radio command + `t_press` | drop, send an error event to Q4 |
 | **Q4** | Button Task, Main loop, Radio Task → Display Task | UI event code (enum) + numbers | drop |
 
@@ -50,25 +50,55 @@ Rules:
 
 - Marked `IRAM_ATTR`.
 - Calls only `...FromISR` API: `xQueueSendFromISR` with `xHigherPriorityTaskWoken` and `portYIELD_FROM_ISR()`. Without the yield the button task would only wake on the next tick.
+- Triggers on `CHANGE`, both edges: the task needs releases to tell release bounce from a new press.
+- Reads the pin level with `digitalRead`. Inside a bounce burst this value is unreliable.
 - Does nothing else: no logic, no Serial, no logs.
-- Contact bounce produces 5–20 interrupts per press. A failed send is fine: the event is simply dropped.
+- Contact bounce produces 5–20 interrupts per press and again per release. If Q1 is full, the edge is dropped and `btnIsrRejections` grows.
 
 ## Button Task
 
-A small state machine with two states:
+Two layers in one task. Layer 1 turns raw edges into Press / Release, layer 2 turns presses into `SINGLE` / `DOUBLE`. Releases only matter for layer 1.
 
-| State | Waits on Q1 | On event | On timeout |
-|---|---|---|---|
-| **IDLE** | forever | accept the press, set `deadline = t_press + window`, go to WAIT_SECOND | — |
-| **WAIT_SECOND** | until `deadline` | bounce → ignore; real press → send `DOUBLE`, go to IDLE | send `SINGLE`, go to IDLE |
+Constants: debounce 30 ms, double-click window 350 ms.
+
+### Layer 1: debounce (simplified lockout)
+
+| Edge | Result |
+|---|---|
+| less than 30 ms after the previous edge | `Glitch`, ignored. The window slides: every edge, bounce included, moves it |
+| 30 ms or more after the previous edge, level HIGH → LOW | `Press` |
+| 30 ms or more after the previous edge, level LOW → HIGH | `Release` |
+| 30 ms or more after the previous edge, same level | `Undefined`, ignored |
+
+The level comparison uses the level of the previous edge and the level the ISR read for this edge. A press is announced on the first edge of the burst, so debounce adds no latency.
+
+### Layer 2: click state machine
+
+| State | Waits on Q1 | Press, `t ≤ deadline` | Press, `t > deadline` | Deadline passed |
+|---|---|---|---|---|
+| **Idle** | forever | start: `deadline = t_press + 350 ms` → Processing | same | — |
+| **Processing** | until `deadline` | send `DOUBLE` → Idle | send `SINGLE`, put the edge back to the front of Q1, it starts a new click → Idle | send `SINGLE` → Idle |
 
 Details:
-- **Debounce by timestamp:** an edge closer than _N_ ms to the last accepted one is bounce.
-- **Release bounce:** releasing the button also bounces and produces falling edges. They can arrive 100–200 ms after the press, inside the double-click window, and must not count as a second click. Options: check the pin level, track both edges (full press → release cycles), or a longer debounce. _TBD._
-- **Timeout from the deadline:** each wait in WAIT_SECOND uses the time left until `deadline`, it does not restart the full window after an ignored event.
-- **Third click** and events after the decision: behavior is defined explicitly. _TBD._
-- The double-click window is _TBD_ (typically 250–400 ms). It is a trade-off: a shorter window means a faster `SINGLE`, but a harder `DOUBLE`.
-- Bring-up: debug the click detection first without the radio (the loop just prints the result).
+- **Decisions by timestamps.** When an edge arrives, its ISR timestamp is compared with `deadline`, on a timeout `now` is. A late task (e.g. the CPU was busy) still gets the right answer: a press queued before the deadline still becomes `DOUBLE`.
+- **Timeout from the deadline:** each wait uses the time left until `deadline`, converted to ticks with rounding up and at least 1 tick. It does not restart the full window after an ignored edge.
+- **Release bounce** is filtered by layer 1, so it can't start a new click after `DOUBLE`.
+- **Third click:** after `DOUBLE` the machine is Idle, so a triple click gives `DOUBLE` + `SINGLE`.
+- A re-queued edge is recognized by its timestamp and is not classified by layer 1 a second time.
+
+### Known limitations
+
+Layer 1 is not a full lockout algorithm. A full one takes the direction from the stable (announced) state, not from the ISR reading, and checks the level of the last edge when the line goes quiet. Without it a click can be lost in rare cases:
+- **The ISR reads the first edge after it bounced back.** HIGH → HIGH gives `Undefined`, the rest of the burst is `Glitch`, and the press is lost. Nothing corrects it later.
+- **Very fast double click:** if the second press comes less than 30 ms after the release bounce, it falls into the sliding window and becomes `Glitch`. The result is `SINGLE` instead of `DOUBLE`.
+- **Noise spike** after a quiet period is taken as a press.
+- **Re-queue to Q1** blocks the task for up to 1 s if Q1 is full.
+
+Planned fix: direction from the stable state, a quiet check (by the next edge's timestamp or by a queue timeout) that compares the last edge's level with the announced one and emits a correcting or late event.
+
+### Diagnostics
+
+`btnIsrRejections` and `btnEventRejections` are kept in `RTC_NOINIT_ATTR` memory with a magic value, so they survive a software or watchdog reset and show whether queues overflowed before a hang.
 
 ## Main loop
 
@@ -130,7 +160,7 @@ forever:
 | Channel | Signal | Marks |
 |---|---|---|
 | CH0 | button line (GPIO 15) | physical press, bounce |
-| CH1 | Debug 1 (GPIO 13) | _TBD_, e.g. click decided / command put into Q3 |
+| CH1 | Debug 1 (GPIO 13) | button ISR entry |
 | CH2 | Debug 2 (GPIO 14) | _TBD_, e.g. `startTransmit` called |
 | CH3 | DIO0 (GPIO 26) | physical end of the transmission |
 

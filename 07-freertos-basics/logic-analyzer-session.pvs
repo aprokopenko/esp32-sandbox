@@ -8,21 +8,21 @@ color=4279638298
 conv_options=0
 conversion_type=0
 enabled=true
-name=D0
+name=dbg1
 
 [D1]
 color=4287582722
 conv_options=0
 conversion_type=0
 enabled=true
-name=D1
+name=dbg2
 
 [D2]
 color=4291559424
 conv_options=0
 conversion_type=0
 enabled=true
-name=D2
+name=dio
 
 [D3]
 color=4294277376
@@ -36,7 +36,7 @@ color=4293776384
 conv_options=0
 conversion_type=0
 enabled=true
-name=dio
+name=D4
 
 [D5]
 color=4285780502
@@ -74,9 +74,9 @@ D4\trace_height=36
 D5\trace_height=36
 D6\trace_height=36
 D7\trace_height=36
-offset=22 serialization::archive 20 0 0 0 0 6 46318941 16544733 56090540 92158201 60984122 0 0 0 6
-scale=0.007261874801398144
+offset=22 serialization::archive 20 0 0 0 0 76761513 81197371 39277278 0 0 0 -24 1 0 6
+scale=0.0015760441292356185
 segment_display_mode=1
-splitter_state=@ByteArray(\0\0\0\xff\0\0\0\x1\0\0\0\x2\0\0\0`\0\0\x4\r\x1\0\0\0\x1\x1\0\0\0\x1\0)
+splitter_state=@ByteArray(\0\0\0\xff\0\0\0\x1\0\0\0\x2\0\0\0`\0\0\x4\a\x1\0\0\0\x1\x1\0\0\0\x1\0)
 v_offset=0
 zero_offset=22 serialization::archive 20 0 0 0 0 0 0 0 0 0 0 0 0 0 6

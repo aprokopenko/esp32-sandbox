@@ -114,7 +114,7 @@ void processButtonChange(void *args) {
     BaseType_t eventReceived = xQueueReceive(xBtnIsr, &e, waitTicks);
 
     if (eventReceived == pdTRUE) {
-      log_d("btn event %lld, val %d", e.us, (bool)e.value);
+      log_v("btn event %lld, val %d", e.us, (bool)e.value);
 
       defineButtonEdgeTransition(e, lastTransition);
 
@@ -170,6 +170,8 @@ void processButtonChange(void *args) {
         btnEventRejections++;
         log_e("Button event xQueueSend failed.");
       }
+
+      digitalWrite(DBG1_PIN, LOW);
     }
   }
 }

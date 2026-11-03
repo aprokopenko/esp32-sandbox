@@ -1,107 +1,170 @@
 #include "radio.h"
-/*
-SX1262 radio = new Module(CS0_PIN, DIO1_PIN, NRST_PIN, BUSY_PIN);
+#include <Arduino.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <RadioLib.h>
+#include <optional>
+#include "config.h"
+#include "lora.h"
 
-// save transmission state between loops
-int transmissionState = RADIOLIB_ERR_NONE;
+namespace radio {
 
-// flag to indicate that a packet was sent
-volatile bool transmittedFlag = false;
+bool isAvailable = false;
 
-void setFlag(void) {
-  // we sent a packet, set the flag
-  transmittedFlag = true;
-}
+namespace {
+  QueueHandle_t xLoRa;
+  SemaphoreHandle_t xTxSemaphore;
 
-void radioBegin() {
+  constexpr uint16_t X_LORA_STACK_SIZE = 4096;
+  constexpr uint8_t X_LORA_PRIO = 5;
 
-  // before calling begin(), correct crystal has to be selected
-  // most SX126x have a TCXO which needs 1.6V reference
-  // set to 0 if your radio has an XTAL
-  radio.tcxoVoltage = LORA_TCXO_VOLTAGE;
+  SX1276 chip = new Module(CS0_PIN, DIO0_PIN, NRST_PIN, RADIOLIB_NC);
 
-  Log.infoln("[SX1262] Initializing LoRa...");
-  ConfigLoRa_t config;
-  config.frequency       = LORA_FREQUENCY_MHZ;
-  config.bandwidth       = LORA_BANDWIDTH_KHZ;
-  config.spreadingFactor = LORA_SPREADING_FACTOR;
-  config.codingRate      = LORA_CODING_RATE;
-  config.syncWord        = LORA_SYNC_WORD;
-  config.power           = LORA_POWER_DBM;
-  config.preambleLength  = LORA_PREAMBLE_LENGTH;
+  // save transmission state between loops
+  int transmissionState = RADIOLIB_ERR_NONE;
 
-  int state = radio.begin(config);
+  const char* prepareClicksMessage(unsigned int clicks) {
+    if (clicks == 1) {
+      return "SINGLE CLICK";
+    }
+    if (clicks == 2) {
+      return "DOUBLE CLICK";
+    }
 
-  if (state == RADIOLIB_ERR_NONE) {
-    Log.infoln("   success!");
-
-    radio.setRfSwitchPins(RF_SWITCH_PIN, RADIOLIB_NC);
-  } else {
-    Log.errorln("   failed, code %d", state);
-    while (true) { delay(10); } // block processing
+    return "MANY CLICKS";
   }
 
-  // set the function that will be called
-  // when packet transmission is finished
-  radio.setPacketSentAction(setFlag);
+  IRAM_ATTR void notifyPacketSent(void) {
+    auto pxHigherPrioTaskWoken = pdFALSE;
 
-  pinMode(LEDG_PIN, OUTPUT);
-  pinMode(LEDR_PIN, OUTPUT);
-  digitalWrite(LEDG_PIN, LOW);
-}
+    xSemaphoreGiveFromISR(xTxSemaphore, &pxHigherPrioTaskWoken);
 
-// counter to keep track of transmitted packets
-unsigned int packagesSent = 0;
-uint32_t lastTransmissionMs = 0;
-uint64_t lastTransmissionUs = 0;
-constexpr uint16_t TRANSMISSIONS_DELAY_MS = 15000;
+    if (pxHigherPrioTaskWoken == pdTRUE) {
+      portYIELD_FROM_ISR();
+    }
+  }
 
-void radioSend() {
-  // check if the previous transmission finished
-  if(transmittedFlag) {
-    // reset flag
-    transmittedFlag = false;
+  std::optional<RadioLibTime_t> startTransmission(const char* msg) {
+    size_t len = strlen((char*)msg);
+    log_d("[SX1276] Start transmission message (%uB): %s", len, (char*)msg);
 
-    uint64_t txTimeUs = micros() - lastTransmissionUs;
+    transmissionState = chip.startTransmit(msg);
+    if (transmissionState != RADIOLIB_ERR_NONE) {
+      log_e("[SX1276]    send failed");
 
+      return std::nullopt;
+    }
+
+    return chip.getTimeOnAir(len);
+  }
+
+  void finishTransmission() {
     if (transmissionState == RADIOLIB_ERR_NONE) {
-      Log.traceln("[SX1262]   transmission finished in %uus!", txTimeUs);
+      log_d("[SX1276]   transmission finished!");
     } else {
-      Log.errorln("[SX1262]   transmission failed! Code %d", transmissionState);
+      log_e("[SX1276]   transmission failed! Code %d", transmissionState);
     }
 
-    // clean up after transmission is finished
-    // this will ensure transmitter is disabled,
-    // RF switch is powered down etc.
-    radio.finishTransmit();
-    digitalWrite(LEDR_PIN, HIGH);
+    // clean up after transmission is finished this will ensure transmitter is disabled
+    chip.finishTransmit();
   }
 
-  uint32_t nowMs = millis();
-  if (
-    (!lastTransmissionMs || (nowMs - lastTransmissionMs >= TRANSMISSIONS_DELAY_MS)) 
-    && !transmittedFlag
-  ) {
-    Log.traceln("[SX1262] Sending packet #%u...", ++packagesSent);
+  void processRadioQueue(void* args) {
+    int clicks;
+    for (;;) {
+      if (pdTRUE != xQueueReceive(xLoRa, &clicks, portMAX_DELAY)) {
+        log_e("Lora queue is not responding");
+        continue;
+      }
 
-    float cpuTemp = readCPUTemperature();
+      xSemaphoreTake(xTxSemaphore, 0); // clear semaphore anyway
+      std::optional<RadioLibTime_t> onAir = startTransmission(prepareClicksMessage(clicks));
+      if (!onAir) {
+        continue;
+      }
+      digitalWrite(DBG2_PIN, HIGH);
 
-    // you can transmit C-string string up to 256 characters long
-    uint8_t msg[LORA_FIXED_PAYLOAD_SIZE ? LORA_FIXED_PAYLOAD_SIZE : 64];
-    if (LORA_FIXED_PAYLOAD_SIZE) {
-      memset(msg, 0xAA, sizeof(msg));
+      if (pdTRUE != xSemaphoreTake(xTxSemaphore, pdMS_TO_TICKS(onAir.value() / 1000 + 20))) {
+        log_e("[SX1276]    missed transmitted interruption");
+        transmissionState = RADIOLIB_ERR_TX_TIMEOUT;
+      }
+
+      finishTransmission();
+
+      digitalWrite(DBG2_PIN, LOW);
     }
-    snprintf((char*)msg, sizeof(msg), "Package #%u at %lus, T=%.1f", packagesSent, nowMs / 1000, cpuTemp);
-    size_t len = LORA_FIXED_PAYLOAD_SIZE ? sizeof(msg) : strlen((char*)msg);
-    Log.traceln("[SX1262]    message (%dB): %s", len, (char*)msg);
-
-    Log.traceln("[SX1262]    expected time on air: %uus", (uint32_t)radio.getTimeOnAir(len));
-
-    transmissionState = radio.startTransmit(msg, len);
-
-    lastTransmissionMs = nowMs;
-    lastTransmissionUs = micros();
-    digitalWrite(LEDR_PIN, LOW);
   }
+}  //namespace
+
+void begin() {
+  pinMode(DBG2_PIN, OUTPUT);
+  digitalWrite(DBG2_PIN, LOW);
+
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, CS0_PIN);
+
+  log_i("[SX1276] Initializing LoRa...");
+  ConfigLoRa_t config;
+  config.frequency = LORA_FREQUENCY_MHZ;
+  config.bandwidth = LORA_BANDWIDTH_KHZ;
+  config.spreadingFactor = LORA_SPREADING_FACTOR;
+  config.codingRate = LORA_CODING_RATE;
+  config.syncWord = LORA_SYNC_WORD;
+  config.power = LORA_POWER_DBM;
+  config.preambleLength = LORA_PREAMBLE_LENGTH;
+
+  int state = chip.begin(config);
+
+  if (state != RADIOLIB_ERR_NONE) {
+    log_e("[SX1276]   failed, code %d", state);
+    return;
+  }
+
+  log_i("[SX1276]   success!");
+
+  // init queue and tasks
+  xTxSemaphore = xSemaphoreCreateBinary();
+  if (xTxSemaphore == nullptr) {
+    log_e("Unable to create semaphore");
+    return;
+  }
+
+  xLoRa = xQueueCreate(10, sizeof(unsigned int));
+  if (xLoRa == nullptr) {
+    log_e("Unable to create radio queue");
+    return;
+  }
+
+  BaseType_t status = xTaskCreatePinnedToCore(
+    processRadioQueue,
+    "processRadioQueue",
+    X_LORA_STACK_SIZE,
+    nullptr,  // params
+    X_LORA_PRIO,
+    nullptr,        // pointer
+    0
+  );
+  if (status != pdPASS) {
+    log_e("Unable to create queue processing task. Code %d", status);
+    return;
+  }
+
+  // init interruption
+  chip.setPacketSentAction(notifyPacketSent);
+
+  isAvailable = true;
 }
-*/
+
+BaseType_t sendClicksNotification(unsigned int clicks) {
+  if (! isAvailable) {
+    return pdFALSE;
+  }
+
+  BaseType_t status = xQueueSend(xLoRa, &clicks, pdMS_TO_TICKS(1000));
+  if(status != pdTRUE) {
+    log_e("radio queue is busy");
+  }
+
+  return status;
+}
+
+}  // namespace radio

@@ -5,6 +5,7 @@
 #include <Adafruit_SSD1306.h>
 #include "config.h"
 #include "button.h"
+#include "radio.h"
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -67,6 +68,7 @@ void setup() {
   loadDisplay();
 
   buttonBegin();
+  radio::begin();
 
   // indicate loading finished
   digitalWrite(LED_PIN, HIGH);
@@ -76,7 +78,12 @@ void loop() {
   ButtonEvent btnEv;
 
   if (pdTRUE == xQueueReceive(xBtnEvents, &btnEv, portMAX_DELAY)) {
-    log_d("main caught btn event, ms: %li", btnEv.ms);
-    log_d("\n\n");
+    log_d("\nmain caught btn event, ms: %li", btnEv.ms);
+
+    if (radio::isAvailable) {
+      radio::sendClicksNotification(btnEv.mode == ButtonPressMode::Single ? 1 : 2);
+    }
+
+    log_d("\n");
   }
 }
