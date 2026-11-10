@@ -1,9 +1,11 @@
 #include <Arduino.h>
-#include <freertos/queue.h>
 #include "config.h"
 #include "helpers.h"
 #include "app/app.h"
 #include "drivers/led.h"
+#include "services/settings_store.h"
+#include "services/net.h"
+#include "services/setup_portal.h"
 
 static QueueHandle_t xEvents;
 
@@ -23,9 +25,14 @@ void setup() {
 
   // init services and drivers
   static drivers::Led led(LED_PIN);
+  static services::SettingsStore settings;
+  settings.load();
+
+  static services::Net net(xEvents, settings.wifi());
+  static services::SetupPortal setup(xEvents, settings);
 
   // create app and load
-  static app::App app(xEvents, led);
+  static app::App app(xEvents, led, net, setup);
   app.bootstrap();
 }
 

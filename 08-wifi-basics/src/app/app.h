@@ -3,6 +3,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include "drivers/led.h"
+#include "services/net.h"
+#include "services/setup_portal.h"
 
 namespace app {
 
@@ -18,7 +20,9 @@ public:
 
   App(
     QueueHandle_t events,
-    drivers::Led& led
+    drivers::Led& led,
+    services::Net& net,
+    services::SetupPortal& setup
   );
   void bootstrap();
 
@@ -29,7 +33,10 @@ private:
 
   State _state = State::Loading;
   QueueHandle_t _events;
+
   drivers::Led& _led;
+  services::Net& _net;
+  services::SetupPortal& _setup;
 
   static void xHandle(void* args);
   void handle();

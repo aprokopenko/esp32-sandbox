@@ -10,8 +10,17 @@ QueueHandle_t App::createQueue() {
   return xQueueCreate(APP_QUEUE_LENGTH, sizeof(struct Event));
 }
 
-App::App(QueueHandle_t events, drivers::Led& led)
-  : _events(events), _led(led) {}
+App::App(
+  QueueHandle_t events,
+  drivers::Led& led,
+  services::Net& net,
+  services::SetupPortal& setup
+) :
+  _events(events),
+  _led(led),
+  _net(net),
+  _setup(setup)
+{}
 
 void App::bootstrap() {
   _led.begin();
@@ -51,10 +60,21 @@ void App::handle() {
     switch (e.type)
     {
       case EventType_t::Initialized:
-        // TODO: remove, this is for test only
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        // try to connect
+        _net.connect();
+        break;
+
+      case EventType_t::WiFiFailed:
+        log_w("WiFi is down, need to load access point");
+        _led.play(drivers::Led::Pattern::DoubleBlink);
+        _setup.begin();
+        break;
+
+      case EventType_t::TimeSynced:
+        // we're ready to work
         _led.play(drivers::Led::Pattern::On);
         break;
+
 
       default:
         log_e("Unknown event type received. type: [%u], ms: [%lu], val: [%d]", e.type, e.t_ms, e.val);
