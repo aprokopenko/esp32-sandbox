@@ -17,7 +17,7 @@ public:
 private:
   static constexpr auto DEFAULT_AP_SSID = "ESP32Connect";
   static inline const IPAddress SERVER_IP{192, 168, 10, 10};
-  static constexpr uint8_t DNS_PORT = 53;
+  static constexpr uint16_t DNS_PORT = 53;
   static constexpr uint8_t TASK_PRIO = 2;
   static constexpr uint32_t TASK_STACK = 8192;
   static constexpr uint8_t TASK_CORE = 1;
@@ -38,9 +38,11 @@ private:
   void scanNetworks();
   void startAP();
   void initRouting();
-  static void handleRequestCallback(void* args);
-  void handleRequest();
-
+  static void listenRequestCallback(void* args);
+  void listenRequest();
+  void handleGetSetupPage();
+  void handleGetNetworksJson();
+  void handlePostSave();
 };
 
 }  //namespace services
