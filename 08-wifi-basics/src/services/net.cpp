@@ -26,7 +26,7 @@ void Net::connect() {
   size_t waiting = 0;
   uint16_t delay = 300;
 
-  while (WiFi.status() != WL_CONNECTED || waiting > MAX_CONNECTION_TIMEOUT_MS) {
+  while (WiFi.status() != WL_CONNECTED && waiting < MAX_CONNECTION_TIMEOUT_MS) {
     log_i(".");
     vTaskDelay(pdMS_TO_TICKS(delay));
     waiting += delay;
@@ -36,9 +36,11 @@ void Net::connect() {
     log_w("Unable to connect to WiFi with existing settings.");
     Event e = createEvent(EventType_t::WiFiFailed);
     xQueueSend(_events, &e, portMAX_DELAY);
+
+    return;
   }
 
-  log_i("WiFi connection successful. IP address: %s", WiFi.localIP());
+  log_i("WiFi connection successful. IP address: %s", WiFi.localIP().toString());
   Event e = createEvent(EventType_t::WiFiUp);
   xQueueSend(_events, &e, portMAX_DELAY);
 }

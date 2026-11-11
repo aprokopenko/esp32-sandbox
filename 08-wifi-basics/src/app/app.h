@@ -5,6 +5,7 @@
 #include "drivers/led.h"
 #include "services/net.h"
 #include "services/setup_portal.h"
+#include "services/notifier.h"
 
 namespace app {
 
@@ -22,7 +23,8 @@ public:
     QueueHandle_t events,
     drivers::Led& led,
     services::Net& net,
-    services::SetupPortal& setup
+    services::SetupPortal& setup,
+    services::Notifier& notifier
   );
   void bootstrap();
 
@@ -37,6 +39,7 @@ private:
   drivers::Led& _led;
   services::Net& _net;
   services::SetupPortal& _setup;
+  services::Notifier& _notifier;
 
   static void xHandle(void* args);
   void handle();

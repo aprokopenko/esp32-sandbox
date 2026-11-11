@@ -4,6 +4,11 @@
 #include <string.h>
 #include <algorithm>
 #include <freertos/task.h>
+#include <LittleFS.h>
+#include <ArduinoJson.h>
+#include "settings.h"
+#include "event.h"
+#include "event_factory.h"
 
 namespace services {
 
@@ -12,6 +17,10 @@ SetupPortal::SetupPortal(QueueHandle_t events, services::SettingsStore& settings
 
 void SetupPortal::begin() {
   log_i("Initializing Setup Portal...");
+
+  if (!LittleFS.begin(false)) {
+    PANIC("Unable to mount local file system. Terminating!");
+  }
 
   scanNetworks();
   startAP();
@@ -73,11 +82,13 @@ void SetupPortal::scanNetworks() {
 
     NetInfo ni = NetInfo{
       .rssi = WiFi.RSSI(i),
-      .open = WiFi.encryptionType(i) == WIFI_AUTH_OPEN
+      .secure = WiFi.encryptionType(i) != WIFI_AUTH_OPEN
     };
     strlcpy(ni.ssid, WiFi.SSID(i).c_str(), sizeof(ni.ssid));
 
-    log_d("  found network [%s], secure [%d]", ni.ssid, !ni.open);
+    log_d("  found network [%s], secure [%d]", ni.ssid, ni.secure);
+    log_d("  [%s] bssid %s ch %d rssi %d secure %d",
+      ni.ssid, WiFi.BSSIDstr(i).c_str(), WiFi.channel(i), ni.rssi, ni.secure);
 
     // one network can have several access points (mesh, office):
     // keep one entry per SSID, with the strongest signal
@@ -119,7 +130,7 @@ void SetupPortal::listenRequest() {
 
 void SetupPortal::initRouting() {
 
-  _server.on("/setup.htm", HTTP_GET, [this]() { handleGetSetupPage(); });
+  _server.serveStatic("/setup.htm", LittleFS, "/setup_portal/setup.html");
   _server.on("/networks.json", HTTP_GET, [this]() { handleGetNetworksJson(); });
   _server.on("/setup.htm", HTTP_POST, [this]() { handlePostSave(); });
 
@@ -139,23 +150,78 @@ void SetupPortal::initRouting() {
     log_d(
       "404 %s %s",
       (_server.method() == HTTP_GET) ? "GET" : "POST",
-      _server.uri()
+      _server.uri().c_str()
     );
   });
 }
 
-void SetupPortal::handleGetSetupPage() {
-  _server.send(200, "text/plain", "hello world");
-}
-
 void SetupPortal::handleGetNetworksJson() {
-  _server.send(200, "text/plain", "[]");
+  JsonDocument doc;
+  JsonArray arr = doc.to<JsonArray>();
+
+  for(const NetInfo& n : _networks) {
+    JsonObject o = arr.add<JsonObject>();
+    o["ssid"] = n.ssid;
+    o["rssi"] = n.rssi;
+    o["secure"] = n.secure;
+  }
+
+  String out;
+  serializeJson(doc, out);
+  log_d("Json: %s", out.c_str());
+
+  _server.send(200, "application/json", out);
 }
 
 void SetupPortal::handlePostSave() {
-  _server.send(200, "text/plain", "saved world");
+  String ssid = _server.arg("ssid");
+  String pass = _server.arg("password");
+  String url = _server.arg("url");
+  url.trim();
+
+  log_d("Form submitted: ssid [%s], pass [%u chars], url [%s]", ssid.c_str(), pass.length(), url.c_str());
+
+  // check everything before the first write:
+  // a wrong field must not leave half of the settings saved
+  const char* error = nullptr;
+  if (ssid.isEmpty()) {
+    error = "Choose a network or enter its name.";
+  } else if (ssid.length() >= sizeof(WifiSettings::ssid)) {
+    error = "The network name is longer than 32 characters.";
+  } else if (!pass.isEmpty() && (pass.length() < MIN_PASS_LEN || pass.length() > MAX_PASS_LEN)) {
+    error = "A Wi-Fi password has 8 to 63 characters.";
+  } else if (!url.startsWith("https://") || url.length() <= strlen("https://")) {
+    error = "The URL must start with https://";
+  } else if (url.length() >= sizeof(NotificationSettings::url)) {
+    error = "The URL is too long.";
+  }
+
+  if (error) {
+    log_w("Settings rejected: %s", error);
+    _server.send(422, "text/plain", error);  // the page shows this text under the title
+    return;
+  }
+
+  WifiSettings wifi{};
+  strlcpy(wifi.ssid, ssid.c_str(), sizeof(wifi.ssid));
+  strlcpy(wifi.pass, pass.c_str(), sizeof(wifi.pass));
+
+  NotificationSettings notif{};
+  strlcpy(notif.url, url.c_str(), sizeof(notif.url));
+
+  // the values are valid here, so false means NVS failed to write
+  if (!_settings.setWifi(wifi) || !_settings.setNotifications(notif)) {
+    log_e("Unable to write settings to NVS");
+    _server.send(500, "text/plain", "The board could not save the settings. Try again.");
+    return;
+  }
+
+  log_i("Settings saved.");
+  _server.send(200, "text/plain", "Saved.");
+
+  // send event
+  Event e = createEvent(EventType_t::SettingsSaved);
+  xQueueSend(_events, &e, portMAX_DELAY);
 }
-
-
 
 }  //namespace services

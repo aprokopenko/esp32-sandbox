@@ -6,6 +6,8 @@
 #include "services/settings_store.h"
 #include "services/net.h"
 #include "services/setup_portal.h"
+#include "services/notifier.h"
+#include "drivers/https_transport.h"
 
 static QueueHandle_t xEvents;
 
@@ -31,8 +33,11 @@ void setup() {
   static services::Net net(xEvents, settings.wifi());
   static services::SetupPortal setup(xEvents, settings);
 
+  static drivers::HttpsTransport transport(settings.notifications().url);
+  static services::Notifier notifier(xEvents, transport);
+
   // create app and load
-  static app::App app(xEvents, led, net, setup);
+  static app::App app(xEvents, led, net, setup, notifier);
   app.bootstrap();
 }
 

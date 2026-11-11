@@ -1,6 +1,20 @@
 #include "settings_store.h"
 #include <string.h>
 
+// local dev defaults, not in git (see include/secrets.example.h)
+#if __has_include("secrets.h")
+#include "secrets.h"
+#endif
+#ifndef DEFAULT_WIFI_SSID
+#define DEFAULT_WIFI_SSID ""
+#endif
+#ifndef DEFAULT_WIFI_PASS
+#define DEFAULT_WIFI_PASS ""
+#endif
+#ifndef DEFAULT_NOTIFY_URL
+#define DEFAULT_NOTIFY_URL ""
+#endif
+
 namespace services {
 
 namespace {
@@ -29,6 +43,17 @@ void SettingsStore::load() {
     }
     _nvs.end();
   }
+
+  // nothing saved yet: fall back to the dev defaults (empty without secrets.h)
+  if (_wifi.ssid[0] == '\0' && DEFAULT_WIFI_SSID[0] != '\0') {
+    log_i("No saved WiFi settings, using defaults from secrets.h");
+    strlcpy(_wifi.ssid, DEFAULT_WIFI_SSID, sizeof(_wifi.ssid));
+    strlcpy(_wifi.pass, DEFAULT_WIFI_PASS, sizeof(_wifi.pass));
+  }
+  if (_notifications.url[0] == '\0' && DEFAULT_NOTIFY_URL[0] != '\0') {
+    log_i("No saved notification URL, using default from secrets.h");
+    strlcpy(_notifications.url, DEFAULT_NOTIFY_URL, sizeof(_notifications.url));
+  }
 }
 
 bool SettingsStore::setWifi(const WifiSettings& wifi) {
@@ -37,30 +62,33 @@ bool SettingsStore::setWifi(const WifiSettings& wifi) {
       return false;
     }
 
-  _nvs.begin(WIFI_NS, RW_MODE);
-  size_t bytes = 0;
-
-  if (strcmp(_wifi.ssid, wifi.ssid) != 0 ) {
-    bytes = _nvs.putString("ssid", wifi.ssid);
+  if (!_nvs.begin(WIFI_NS, RW_MODE)) {
+    return false;
   }
 
-  if (bytes && strcmp(_wifi.pass, wifi.pass) != 0) {
-    if (strcmp(wifi.pass, "") == 0 && _nvs.isKey("pass")) {
-      bytes = (size_t)_nvs.remove("pass");
-    }
-    if (strcmp(wifi.pass, "") != 0) {
-      bytes = _nvs.putString("pass", wifi.pass);
+  // nothing changed = success; false only when a write fails
+  bool ok = true;
+
+  if (strcmp(_wifi.ssid, wifi.ssid) != 0) {
+    ok = _nvs.putString("ssid", wifi.ssid) > 0;
+  }
+
+  if (ok && strcmp(_wifi.pass, wifi.pass) != 0) {
+    if (strcmp(wifi.pass, "") == 0) {
+      // open network: drop the old password
+      ok = !_nvs.isKey("pass") || _nvs.remove("pass");
+    } else {
+      ok = _nvs.putString("pass", wifi.pass) > 0;
     }
   }
 
   _nvs.end();
 
-  if (bytes > 0) {
+  if (ok) {
     _wifi = wifi;
-    return true;
   }
 
-  return false;
+  return ok;
 }
 
 bool SettingsStore::setNotifications(const NotificationSettings& notifications) {
@@ -69,21 +97,24 @@ bool SettingsStore::setNotifications(const NotificationSettings& notifications) 
     return false;
   }
 
-  _nvs.begin(NOTIF_NS, RW_MODE);
-  size_t bytes = 0;
+  if (!_nvs.begin(NOTIF_NS, RW_MODE)) {
+    return false;
+  }
+
+  // nothing changed = success; false only when a write fails
+  bool ok = true;
 
   if (strcmp(_notifications.url, notifications.url) != 0) {
-    bytes = _nvs.putString("url", notifications.url);
+    ok = _nvs.putString("url", notifications.url) > 0;
   }
 
   _nvs.end();
 
-  if (bytes > 0) {
+  if (ok) {
     _notifications = notifications;
-    return true;
   }
 
-  return false;
+  return ok;
 }
 
 }  //namespace services

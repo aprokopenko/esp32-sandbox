@@ -218,7 +218,7 @@ The Arduino libraries (`WiFi`, `Preferences`, `LittleFS`, `HTTPClient`, `OneButt
 |---|---|---|---|
 | `drivers::Button` | drivers | ISR → task notification → OneButton → callback `(Press, ctx)` | own, priority 5 |
 | `drivers::Led` | drivers | pattern player: steps `{level, ms}`, `play(Pattern)` switches by task notification | own, priority 1 |
-| `drivers::Transport` | drivers | interface: `bool send(const Notification&)` | — |
+| `drivers::Transport` | drivers | interface: `int send(const Notification&)`, returns the HTTP status or a negative error | — |
 | `drivers::HttpsTransport` | drivers | implements `Transport`: `WiFiClientSecure` + `HTTPClient`, POST to the URL | runs in the notifier task |
 | `services::SettingsStore` | services | NVS (`Preferences`): load, save, clear; validates the values | — |
 | `services::SetupPortal` | services | scan → AP → DNS + `WebServer`; on save validates, writes through `SettingsStore`, posts `EV_CONFIG_SAVED` | own, priority 1, only in `PROVISIONING` |
@@ -336,7 +336,9 @@ The folders are the layers. No file in `drivers/` includes `event.h` or knows th
 │   ├── config.h                  pins, timings, queue sizes
 │   ├── event.h                   event_t, shared by all layers
 │   ├── notification.h            Notification, shared by Notifier and transports
-│   └── settings.h                Settings: wifi (SSID, password) + url
+│   ├── settings.h                Settings: wifi (SSID, password) + url
+│   ├── secrets.example.h         template for secrets.h
+│   └── secrets.h                 local dev defaults (SSID, password, URL), not in git
 ├── src/
 │   ├── main.cpp                  load settings, create queues and objects, wire the layers,
 │   │                             callbacks → events (onPress)
@@ -379,5 +381,7 @@ pio run -t uploadfs   # settings page → LittleFS
 pio run -t upload
 pio device monitor
 ```
+
+For development, the Wi-Fi and the URL can come from `include/secrets.h` instead of the portal. The file is not in git: copy it from `include/secrets.example.h` and fill it in. The defaults are used only while NVS has no saved settings, so a value saved in the portal wins. To go back to the defaults, erase the flash: `pio run -t erase`, then `upload` and `uploadfs` again.
 
 The serial monitor runs at 115200 baud. Logs use the ESP-IDF `log_*` macros, the level is set by `CORE_DEBUG_LEVEL` in [platformio.ini](platformio.ini).

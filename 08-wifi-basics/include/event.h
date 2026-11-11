@@ -9,6 +9,7 @@ enum class EventType_t {
   WiFiFailed,
   TimeSynced,
   SettingsSaved,
+  NotifyDone,  // val: HTTP status, or a negative error
 };
 
 struct Event {

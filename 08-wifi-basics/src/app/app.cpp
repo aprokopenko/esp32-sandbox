@@ -14,17 +14,20 @@ App::App(
   QueueHandle_t events,
   drivers::Led& led,
   services::Net& net,
-  services::SetupPortal& setup
+  services::SetupPortal& setup,
+  services::Notifier& notifier
 ) :
   _events(events),
   _led(led),
   _net(net),
-  _setup(setup)
+  _setup(setup),
+  _notifier(notifier)
 {}
 
 void App::bootstrap() {
   _led.begin();
   _led.play(drivers::Led::Pattern::Blink);
+  _notifier.begin();
 
   // queue processing task
   BaseType_t res = xTaskCreatePinnedToCore(
@@ -68,6 +71,27 @@ void App::handle() {
         log_w("WiFi is down, need to load access point");
         _led.play(drivers::Led::Pattern::DoubleBlink);
         _setup.begin();
+        break;
+
+      case EventType_t::SettingsSaved:
+        log_i("Settings saved event received.");
+        _led.play(drivers::Led::Pattern::Blink);
+        vTaskDelay(pdMS_TO_TICKS(5000)); // wait few seconds, so wifi is not closed on phone too fast
+        abort(); //restart board to try reconnect
+        break;
+
+      case EventType_t::WiFiUp:
+        log_i("WiFi is up event received.");
+        _led.play(drivers::Led::Pattern::On);
+        _notifier.send(e);  // test: announce that the board is online
+        break;
+
+      case EventType_t::NotifyDone:
+        if (e.val >= 200 && e.val < 300) {
+          log_i("Notification delivered, HTTP %d.", e.val);
+        } else {
+          log_w("Notification failed, code %d.", e.val);
+        }
         break;
 
       case EventType_t::TimeSynced:

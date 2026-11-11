@@ -21,11 +21,13 @@ private:
   static constexpr uint8_t TASK_PRIO = 2;
   static constexpr uint32_t TASK_STACK = 8192;
   static constexpr uint8_t TASK_CORE = 1;
+  static constexpr size_t MIN_PASS_LEN = 8;   // WPA2 passphrase: 8..63 characters
+  static constexpr size_t MAX_PASS_LEN = 63;
 
   struct NetInfo {
     char ssid[33];
     int32_t rssi;
-    bool open;
+    bool secure;
   };
 
   QueueHandle_t _events;
@@ -40,7 +42,6 @@ private:
   void initRouting();
   static void listenRequestCallback(void* args);
   void listenRequest();
-  void handleGetSetupPage();
   void handleGetNetworksJson();
   void handlePostSave();
 };
