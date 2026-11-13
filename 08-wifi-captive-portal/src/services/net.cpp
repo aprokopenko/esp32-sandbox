@@ -24,12 +24,12 @@ void Net::connect() {
   WiFi.disconnect();
   WiFi.begin(_settings.ssid, _settings.pass);
   size_t waiting = 0;
-  uint16_t delay = 300;
+  size_t offset = 300;
 
   while (WiFi.status() != WL_CONNECTED && waiting < MAX_CONNECTION_TIMEOUT_MS) {
     log_i(".");
-    vTaskDelay(pdMS_TO_TICKS(delay));
-    waiting += delay;
+    vTaskDelay(pdMS_TO_TICKS(offset));
+    waiting += offset;
   }
 
   if (!WiFi.isConnected()) {

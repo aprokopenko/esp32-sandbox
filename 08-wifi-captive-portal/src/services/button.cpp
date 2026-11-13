@@ -1,5 +1,6 @@
 #include "button.h"
 #include "event_factory.h"
+#include <Arduino.h>
 
 namespace services {
 
@@ -47,6 +48,9 @@ void IsrButton::begin() {
 void IsrButton::listen() {
   if (!_setupCompleted) {
     log_e("Trying to listen button without proper initialization. Cancelling!");
+    return;
+  }
+  if (_listening) {
     return;
   }
 

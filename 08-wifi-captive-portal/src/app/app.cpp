@@ -74,6 +74,7 @@ void App::handle() {
 
       case EventType_t::WiFiFailed:
         log_w("WiFi is down, need to load access point");
+        _state = State::Provisioning;
         _led.play(drivers::Led::Pattern::DoubleBlink);
         _setup.begin();
         break;
@@ -82,14 +83,14 @@ void App::handle() {
         log_i("Settings saved event received.");
         _led.play(drivers::Led::Pattern::Blink);
         vTaskDelay(pdMS_TO_TICKS(5000)); // wait few seconds, so wifi is not closed on phone too fast
-        abort(); //restart board to try reconnect
+        esp_restart(); //restart board to try reconnect
         break;
 
       case EventType_t::WiFiUp: {
         log_i("WiFi is up event received.");
         _clock.sync();
         Event tsEvent = createEvent(EventType_t::TimeSynced);
-        xQueueSend(_events, &tsEvent, portMAX_DELAY);
+        xQueueSend(_events, &tsEvent, 0);
         break;
       }
 
@@ -97,6 +98,7 @@ void App::handle() {
         log_i("Time synced: %s.", _clock.format().c_str());
         // init button
         _btn.listen();
+        _state = State::Online;
         // we're ready to work
         _led.play(drivers::Led::Pattern::On);
         break;

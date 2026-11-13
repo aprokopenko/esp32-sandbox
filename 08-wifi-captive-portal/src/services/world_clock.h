@@ -1,6 +1,7 @@
 #pragma once
 #include <time.h>
 #include <WString.h>
+#include <stdint.h>
 
 namespace services {
 
@@ -17,7 +18,7 @@ private:
   static constexpr const char* NTP_SRV2 = "time.ntp.org.ua";
   static constexpr const char* NTP_SRV3 = "time1.google.com";
 
-  bool _synced;
+  bool _synced = false;
 };
 
 }  //namespace services

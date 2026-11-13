@@ -1,5 +1,5 @@
 #include "setup_portal.h"
-#include "WiFi.h"
+#include <WiFi.h>
 #include "helpers.h"
 #include <string.h>
 #include <algorithm>
@@ -42,7 +42,7 @@ void SetupPortal::begin() {
     TASK_CORE
   );
 
-  if (status != pdTRUE) {
+  if (status != pdPASS) {
     PANIC("Unable to create Access Point server handler. Terminating!");
   }
 
@@ -113,6 +113,7 @@ void SetupPortal::scanNetworks() {
   );
 
   log_i("  saved %zu network(s).", _networks.size());
+  WiFi.scanDelete();
 }
 
 void SetupPortal::listenRequestCallback(void* args) {

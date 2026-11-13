@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <vector>
 #include "services/settings_store.h"
 #include <DNSServer.h>

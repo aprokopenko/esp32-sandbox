@@ -1,6 +1,6 @@
 # Firmware architecture guide
 
-A summary of the lecture on firmware architecture, kept **as it was taught**, without the decisions made for this project. It is the reference for a review: how far the real code went from the guide, and why. The project's own decisions are in [README.md](README.md#architecture).
+A summary of the lecture on firmware architecture, kept **as it was taught**, without the decisions made for a project. It is the reference for a review: how far the real code went from the guide, and why. Each project keeps its own decisions, for example [08-wifi-captive-portal/HOW_IT_WORKS.md](08-wifi-captive-portal/HOW_IT_WORKS.md#architecture).
 
 The examples in the lecture come from an acoustic sensor node: a MEMS microphone, a LoRa radio, a button, a LED and a battery.
 

@@ -1,5 +1,4 @@
 #include "world_clock.h"
-#include <string.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <Arduino.h>
@@ -14,7 +13,7 @@ bool WorldClock::sync() {
     _synced = true;
   }
 
-  while (now() <= 1700000000) {
+  while (now() <= 1700000000) { // start of timestamp
     vTaskDelay(pdMS_TO_TICKS(500));
   }
 
