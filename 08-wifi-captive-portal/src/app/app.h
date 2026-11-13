@@ -6,6 +6,8 @@
 #include "services/net.h"
 #include "services/setup_portal.h"
 #include "services/notifier.h"
+#include "services/world_clock.h"
+#include "services/button.h"
 
 namespace app {
 
@@ -24,7 +26,9 @@ public:
     drivers::Led& led,
     services::Net& net,
     services::SetupPortal& setup,
-    services::Notifier& notifier
+    services::Notifier& notifier,
+    services::WorldClock& worldClock,
+    services::IsrButton& btn
   );
   void bootstrap();
 
@@ -40,6 +44,8 @@ private:
   services::Net& _net;
   services::SetupPortal& _setup;
   services::Notifier& _notifier;
+  services::WorldClock& _clock;
+  services::IsrButton& _btn;
 
   static void xHandle(void* args);
   void handle();

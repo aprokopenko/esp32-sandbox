@@ -5,6 +5,7 @@
 #include "event.h"
 #include "notification.h"
 #include "drivers/transport.h"
+#include "services/world_clock.h"
 
 namespace services {
 
@@ -12,7 +13,7 @@ namespace services {
 // Runs in its own low-priority task, so a slow HTTPS request blocks nobody.
 class Notifier {
 public:
-  Notifier(QueueHandle_t events, drivers::Transport& transport);
+  Notifier(QueueHandle_t events, drivers::Transport& transport, services::WorldClock& worldClock);
   void begin();
 
   // Never waits: a full queue drops the event and returns false.
@@ -27,6 +28,7 @@ private:
   QueueHandle_t _events;
   QueueHandle_t _queue = nullptr;
   drivers::Transport& _transport;
+  services::WorldClock& _clock;
   bool _available = false;
   uint32_t _dropped = 0;
 

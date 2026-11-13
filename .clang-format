@@ -1,7 +1,9 @@
 # Source: https://github.com/arduino/tooling-project-assets/tree/main/other/clang-format-configuration
 ---
 AccessModifierOffset: -2
-AlignAfterOpenBracket: Align
+AlignAfterOpenBracket: DontAlign
+BreakAfterOpenBracketFunction: true
+BreakBeforeCloseBracketFunction: true
 AlignArrayOfStructures: None
 AlignConsecutiveAssignments: None
 AlignConsecutiveBitFields: None

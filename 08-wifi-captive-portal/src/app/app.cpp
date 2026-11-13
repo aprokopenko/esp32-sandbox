@@ -15,19 +15,24 @@ App::App(
   drivers::Led& led,
   services::Net& net,
   services::SetupPortal& setup,
-  services::Notifier& notifier
+  services::Notifier& notifier,
+  services::WorldClock& worldClock,
+  services::IsrButton& btn
 ) :
   _events(events),
   _led(led),
   _net(net),
   _setup(setup),
-  _notifier(notifier)
+  _notifier(notifier),
+  _clock(worldClock),
+  _btn(btn)
 {}
 
 void App::bootstrap() {
   _led.begin();
   _led.play(drivers::Led::Pattern::Blink);
   _notifier.begin();
+  _btn.begin();
 
   // queue processing task
   BaseType_t res = xTaskCreatePinnedToCore(
@@ -80,11 +85,28 @@ void App::handle() {
         abort(); //restart board to try reconnect
         break;
 
-      case EventType_t::WiFiUp:
+      case EventType_t::WiFiUp: {
         log_i("WiFi is up event received.");
-        _led.play(drivers::Led::Pattern::On);
-        _notifier.send(e);  // test: announce that the board is online
+        _clock.sync();
+        Event tsEvent = createEvent(EventType_t::TimeSynced);
+        xQueueSend(_events, &tsEvent, portMAX_DELAY);
         break;
+      }
+
+      case EventType_t::TimeSynced:
+        log_i("Time synced: %s.", _clock.format().c_str());
+        // init button
+        _btn.listen();
+        // we're ready to work
+        _led.play(drivers::Led::Pattern::On);
+        break;
+
+      case EventType_t::ButtonPressed: {
+        log_d("Button clicked");
+        // send notification
+        _notifier.send(e);
+        break;
+      }
 
       case EventType_t::NotifyDone:
         if (e.val >= 200 && e.val < 300) {
@@ -93,12 +115,6 @@ void App::handle() {
           log_w("Notification failed, code %d.", e.val);
         }
         break;
-
-      case EventType_t::TimeSynced:
-        // we're ready to work
-        _led.play(drivers::Led::Pattern::On);
-        break;
-
 
       default:
         log_e("Unknown event type received. type: [%u], ms: [%lu], val: [%d]", e.type, e.t_ms, e.val);

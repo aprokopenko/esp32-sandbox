@@ -7,6 +7,9 @@
 #include "services/net.h"
 #include "services/setup_portal.h"
 #include "services/notifier.h"
+#include "services/world_clock.h"
+#include "services/button.h"
+#include <OneButton.h>
 #include "drivers/https_transport.h"
 
 static QueueHandle_t xEvents;
@@ -32,12 +35,16 @@ void setup() {
 
   static services::Net net(xEvents, settings.wifi());
   static services::SetupPortal setup(xEvents, settings);
+  static services::WorldClock wclock;
 
   static drivers::HttpsTransport transport(settings.notifications().url);
-  static services::Notifier notifier(xEvents, transport);
+  static services::Notifier notifier(xEvents, transport, wclock);
+
+  static OneButton btnDriver(BTN_PIN);
+  static services::IsrButton btn(xEvents, btnDriver) ;
 
   // create app and load
-  static app::App app(xEvents, led, net, setup, notifier);
+  static app::App app(xEvents, led, net, setup, notifier, wclock, btn);
   app.bootstrap();
 }
 

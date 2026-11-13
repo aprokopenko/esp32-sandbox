@@ -5,8 +5,8 @@
 
 namespace services {
 
-Notifier::Notifier(QueueHandle_t events, drivers::Transport& transport)
-  : _events(events), _transport(transport) {}
+Notifier::Notifier(QueueHandle_t events, drivers::Transport& transport, services::WorldClock& worldClock)
+  : _events(events), _transport(transport), _clock(worldClock) {}
 
 void Notifier::begin() {
   _queue = xQueueCreate(QUEUE_LENGTH, sizeof(Event));
@@ -71,12 +71,19 @@ void Notifier::handle() {
 }
 
 void Notifier::format(const Event& e, Notification& n) {
-  n.epoch = 0;  // TODO: wall-clock time = now - (millis() - e.t_ms), after SNTP
+  time_t epoch = _clock.fromMs(e.t_ms);
+  String epochStr = _clock.format(&epoch);
 
   switch (e.type) {
-    case EventType_t::WiFiUp:
-      snprintf(n.text, sizeof(n.text), "Board is online (%" PRIu32 " ms after boot).", e.t_ms);
-      break;
+    case EventType_t::ButtonPressed: {
+        const char* typeName = "Unrecognized";
+        if (e.val == (int)ButtonEvent_t::Single) typeName = "Single";
+        if (e.val == (int)ButtonEvent_t::Double) typeName = "Double";
+        if (e.val == (int)ButtonEvent_t::Long) typeName = "Long";
+
+        snprintf(n.text, sizeof(n.text), "%s press detected at %s.", typeName, epochStr.c_str());
+        break;
+    }
 
     default:
       snprintf(n.text, sizeof(n.text), "Event %d at %" PRIu32 " ms.", static_cast<int>(e.type), e.t_ms);

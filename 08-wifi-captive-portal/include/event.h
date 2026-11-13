@@ -17,3 +17,9 @@ struct Event {
   uint32_t t_ms;
   int32_t val;
 };
+
+enum class ButtonEvent_t {
+  Single,
+  Double,
+  Long
+};
