@@ -14,6 +14,7 @@ app::App apk(led);
 
 void setup() {
   Serial.begin(115200);
+  log_i("\n================= SETUP BEGIN ===============\n");
 
   events = xQueueCreate(20, sizeof(struct Event));
   if (! events) {
@@ -25,7 +26,7 @@ void setup() {
   led.begin();
   ctrl.begin(events);
 
-  log_i("Setup completed.");
+  log_i("Completed.\n================= SETUP END ===============\n");
 }
 
 void loop() {
