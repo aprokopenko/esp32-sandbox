@@ -2,6 +2,7 @@
 #include "blinker.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <esp_task_wdt.h>
 
 namespace drivers {
 
@@ -12,6 +13,7 @@ public:
   void play(uint8_t mode) override;
   void faster() override;
   void slower() override;
+  void reset() override;
 
 private:
   static constexpr uint32_t TASK_STACK = 2048;
@@ -23,6 +25,9 @@ private:
   TaskHandle_t _task;
   uint8_t _mode = 0;
   bool _available = false;
+  esp_task_wdt_user_handle_t _wdtChl = nullptr;
+
+  SemaphoreHandle_t _mutex = nullptr;
 
   static void xHandle(void* args);
   void handle();

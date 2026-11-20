@@ -15,14 +15,14 @@ Learning projects for embedded development: ESP32 (plus one nRF52840) with **Pla
 | [06-crash-dump](06-crash-dump) | TTGO LoRa32 | Crashes the ESP32 on purpose and finds out why: the decoded backtrace in the monitor, and the core dump read from flash. |
 | [07-freertos-basics](07-freertos-basics) | TTGO LoRa32 | Splits the work into FreeRTOS tasks connected by queues: a single or double click sends its own LoRa packet. |
 | [08-wifi-captive-portal](08-wifi-captive-portal) | TTGO LoRa32 | Wi-Fi setup through a captive portal, SNTP time, and an HTTPS notification on a button press. Built in layers: app, services, drivers. |
-| [09-watchdog](09-watchdog) | ESP32 DevKit v1 | FreeRTOS tasks on two cores: an IR remote, decoded by the RMT peripheral, changes the LED blink interval through a queue. TODO: Watchdog. |
+| [09-watchdog](09-watchdog) | ESP32 DevKit v1 | FreeRTOS tasks on two cores: an IR remote, decoded by the RMT peripheral, changes the LED blink interval through a queue. A key hangs the LED task on a mutex on purpose, and the task watchdog catches it through its own channel and reboots the board. |
 
 ## Shared files
 
 | Path | What it is |
 |---|---|
 | [ARCH_GUIDE.md](ARCH_GUIDE.md) | Summary of the lecture on firmware architecture (layers, drivers as interfaces, events, tasks). The reference for reviews from example 08 on. |
-| [clean/](clean) | Empty PlatformIO project for an ESP32 DevKit v1, the starting point for a new example. |
+| [clean/](clean) | Empty PlatformIO project for an ESP32 DevKit v1 and a TTGO LoRa32, the starting point for a new example. On Arduino core 3. |
 | [Makefile](Makefile) | Tool setup: PlatformIO, esptool, esp-coredump, the Xtensa GDB, and serial port access. |
 | [.clang-format](.clang-format) | Code style for all examples (Arduino style, 2 spaces, no alignment after an open bracket). |
 

@@ -25,10 +25,31 @@ void Controls::begin(QueueHandle_t events) {
 void Controls::onPressed(RmtKeyboardKey k) {
   log_d("Button pressed: %d", k);
 
+  int32_t value;
+  switch (k) {
+    case RmtKeyboardKey::Up:
+      value = 0;
+      break;
+    case RmtKeyboardKey::Down:
+      value = 1;
+      break;
+    case RmtKeyboardKey::Sharp:
+      value = 2;
+      break;
+    default:
+      value = -1;
+      break;
+  }
+
+  if (value < 0) {
+    log_d("Unsupported key pressed, code [%d]", k);
+    return;
+  }
+
   Event e = Event{
     .type = EventType_t::ControlPressed,
     .t_ms = millis(),
-    .val = (k == RmtKeyboardKey::Down) ? 1 : 0,
+    .val = value,
   };
   if (pdTRUE != xQueueSend(_events, &e, pdMS_TO_TICKS(MAX_TIMEOUT))) {
     log_w("Queue is full, key press skipped. Code [%d].", k);

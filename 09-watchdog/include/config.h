@@ -1,6 +1,9 @@
 #pragma once
 #include <stdint.h>
 
+// general
+constexpr uint32_t WATCHDOG_TIMEOUT = 10000;
+
 // esp32 v1
 constexpr uint8_t LED_PIN = 2;
 constexpr uint8_t IR_PIN = 23;

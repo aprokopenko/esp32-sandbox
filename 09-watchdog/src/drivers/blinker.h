@@ -10,6 +10,7 @@ public:
   virtual void play(uint8_t mode) = 0;
   virtual void faster() = 0;
   virtual void slower() = 0;
+  virtual void reset() = 0;
 };
 
 }  //namespace drivers

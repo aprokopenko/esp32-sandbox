@@ -43,8 +43,10 @@ void App::processEvent(const Event &e) {
     case EventType_t::ControlPressed: {
         if (e.val == 0) {
           _blink.slower();
-        } else {
+        } else if (e.val == 1) {
           _blink.faster();
+        } else {
+          _blink.reset();
         }
         break;
       }
